@@ -28,6 +28,17 @@ def draw_histogram(lists, titles, output_path='./infographs/input_output_lengths
     plt.savefig(output_path)
     plt.show()
 
+loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True, reduction='none')
+def custom_lossfunction(targets, logits):
+  """This loss function ignore loss for zero padding"""
+  mask = tf.math.logical_not(tf.math.equal(targets, 0))
+  loss = loss_object(targets, logits)
+  dtype_loss = loss.dtype
+  mask = tf.cast(mask,dtype=dtype_loss)
+  loss = loss * mask
+  return tf.reduce_mean(loss)
+
+
 class Dataset:
     def __init__(self, data, tknizer_question, tknizer_sql, max_len_input, max_len_output):
         self.encoder_inps = data.question_header.values
