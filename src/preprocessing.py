@@ -3,27 +3,26 @@ import re
 import pandas as pd
 
 # Loading Json Train Data.
-def load_train_data():
+def load_data(path):
   phase = []
   table_id = []
   question = []
   sql = []
-  with jsonlines.open(r"P:/text-to-sql-project/text-to-SQL-using-LSTM/data/train.jsonl") as f:
+  with jsonlines.open(path) as f:
       for sample in f.iter():
         phase.append(sample['phase'])
         table_id.append(sample['table_id'])
         question.append(sample['question'])
         sql.append(sample['sql'])
-  f.close()
   return pd.DataFrame({'phase': phase, 'id': table_id, 'question': question, 'sql': sql})
 
 # Loading Json Tables info.
-def load_table_info():    
+def load_table_info(path):    
   id = []
   header = []
   types = []
   rows = []
-  with jsonlines.open(r"P:/text-to-sql-project/text-to-SQL-using-LSTM/data/train.tables.jsonl") as f:
+  with jsonlines.open(path) as f:
     for table in f.iter():
       id.append((table['id']))
       header.append((table['header']))
@@ -40,7 +39,7 @@ def merge_data(train_data, train_table_info):
 
 
 # Converting SQL Queries to strings, more suitable for LSTMs.
-def convert_to_sql_strings(merged_data):
+def convert_to_sql_strings(merged_data, file_name):
   sql_in_text = []
   aggregate = ['', 'MAX', 'MIN', 'COUNT', 'SUM', 'AVG']
   operator = ['=', '<', '>']
@@ -74,7 +73,7 @@ def convert_to_sql_strings(merged_data):
   merged_data['resulted_sql'] = sql_in_text
 
   # Saving the preprocessed data into .csv file.
-  merged_data.to_csv('merged_data.csv')
+  merged_data.to_csv(file_name)
   return merged_data
 
 
@@ -126,7 +125,7 @@ def preprocess_text(text):
 
 
 # Formating the inputs for the LSTM model
-def format_inputs(question_header, merged_data):
+def format_inputs(question_header, merged_data, file_name):
   preprocess_question_header = []
   preprocess_sql_in_text = []
 
@@ -145,7 +144,7 @@ def format_inputs(question_header, merged_data):
   final_data['question_header'] = preprocess_question_header
   final_data['sql'] = preprocess_sql_in_text
 
-  final_data.to_csv('final_data.csv')
+  final_data.to_csv(file_name)
 
 
 def filter_data_by_sequence_length(input_lengths, output_lengths, input_length_lim, output_length_lim, final_data):
