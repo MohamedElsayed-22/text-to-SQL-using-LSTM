@@ -12,8 +12,11 @@ class Encoder(tf.keras.Model):
         self.enc_units = lstm_size
 
     def build(self, input_shape):  
-        self.embedding = Embedding(input_dim=self.vocab_size, output_dim=self.embedding_dim, input_length=self.input_length,
-                                   mask_zero=True, name="embedding_layer_encoder")
+        self.embedding = Embedding(input_dim=self.vocab_size, 
+                                   output_dim=self.embedding_dim, 
+                                   input_length=self.input_length,
+                                   mask_zero=True, 
+                                   name="embedding_layer_encoder")
         self.lstm = LSTM(self.enc_units, return_state=True, return_sequences=True, name="Encoder_LSTM")
 
     def call(self, input_sequence, states, training=True):
@@ -77,7 +80,7 @@ class Attention(tf.keras.layers.Layer):
     
 
 class One_Step_Decoder(tf.keras.Model):
-    def __init__(self, tar_vocab_size, embedding_dim, input_length, dec_units, score_fun, att_units):
+    def __init__(self, tar_vocab_size, embedding_dim, input_length, dec_units, score_fun, att_units, dropout_rate=0.2):
         super().__init__()
         self.vocab_size = tar_vocab_size
         self.embedding_dim = embedding_dim
@@ -85,10 +88,13 @@ class One_Step_Decoder(tf.keras.Model):
         self.dec_units = dec_units
         self.score_fun = score_fun
         self.att_units = att_units
+        self.dropout_rate = dropout_rate
+
 
     def build(self, input_shape):
         self.embedding = tf.keras.layers.Embedding(self.vocab_size, output_dim=self.embedding_dim, input_length=self.input_length)
-        self.lstm = tf.keras.layers.LSTM(self.dec_units, return_sequences=True, return_state=True, recurrent_initializer='glorot_uniform')
+        self.lstm = tf.keras.layers.LSTM(self.dec_units, return_sequences=True, return_state=True, 
+                                         recurrent_initializer='glorot_uniform', dropout=self.dropout_rate)
         self.attention = Attention(self.score_fun, self.att_units)
         self.fc = Dense(self.vocab_size)
 
@@ -104,9 +110,9 @@ class One_Step_Decoder(tf.keras.Model):
         output, state_h, state_c = self.lstm(x, initial_state=init_states)
         output = self.fc(output)
         return tf.reduce_sum(output, 1), state_h, state_c, attention_weights, context_vector
-
+        
 class Decoder(tf.keras.Model):
-    def __init__(self, out_vocab_size, embedding_dim, input_length, dec_units, score_fun, att_units):
+    def __init__(self, out_vocab_size, embedding_dim, input_length, dec_units, score_fun, att_units, dropout_rate=0.2):
         super().__init__()
         self.vocab_size = out_vocab_size + 1
         self.embedding_dim = embedding_dim
@@ -115,7 +121,11 @@ class Decoder(tf.keras.Model):
         self.att_units = att_units
         self.score_fun = score_fun
         # Using embedding_matrix and not training the embedding layer
-        self.one_step_decoder = One_Step_Decoder(self.vocab_size, self.embedding_dim, self.input_length, self.dec_units, self.score_fun, self.att_units)
+        self.one_step_decoder = One_Step_Decoder(self.vocab_size, self.embedding_dim, 
+                                                self.input_length, self.dec_units, 
+                                                self.score_fun, self.att_units, 
+                                                dropout_rate=dropout_rate)
+
 
     def call(self, input_to_decoder, encoder_output, decoder_hidden_state, decoder_cell_state):
         output_tensor_array = tf.TensorArray(tf.float32, size=tf.shape(input_to_decoder)[1])
@@ -130,7 +140,7 @@ class Decoder(tf.keras.Model):
     
 
 class Encoder_decoder(tf.keras.Model):
-    def __init__(self, inp_vocab_size, embedding_size, input_length, lstm_size, out_vocab_size, batch_size, score_fun, att_units):
+    def __init__(self, inp_vocab_size, embedding_size, input_length, lstm_size, out_vocab_size, batch_size, score_fun, att_units, dropout_rate=0.2):
         super().__init__()
         self.vocab_size = inp_vocab_size
         self.embedding_size = embedding_size
@@ -141,11 +151,11 @@ class Encoder_decoder(tf.keras.Model):
         self.att_units = att_units
         self.batch_size = batch_size
         
-        self.encoder = Encoder(inp_vocab_size=self.vocab_size, embedding_size=self.embedding_size, input_length=61, lstm_size=self.enc_units)
-        self.decoder = Decoder(out_vocab_size=self.out_vocab_size, embedding_dim=self.embedding_size, dec_units=self.enc_units, input_length=36, score_fun=self.score_fun, att_units=self.att_units)
-        
-    def call(self, data, *params):
+        self.encoder = Encoder(inp_vocab_size=self.vocab_size, embedding_size=self.embedding_size, input_length=61, lstm_size=128)
+        self.decoder = Decoder(out_vocab_size=self.out_vocab_size, embedding_dim=self.embedding_size, dec_units=self.enc_units, input_length=36, score_fun=self.score_fun, att_units=self.att_units, dropout_rate=dropout_rate)
 
+    def call(self, data, *params):
+        
         input, output = data[0], data[1]
         initial_state = self.encoder.initialize_states(self.batch_size)
         encoder_output, encoder_h, encoder_c = self.encoder(input, initial_state)
